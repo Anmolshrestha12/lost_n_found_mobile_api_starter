@@ -5,10 +5,9 @@ import 'package:lost_n_found/core/services/storage/token_service.dart';
 import 'package:lost_n_found/core/services/storage/user_session_service.dart';
 import 'package:lost_n_found/features/auth/data/datasources/auth_datasource.dart';
 import 'package:lost_n_found/features/auth/data/models/auth_api_model.dart';
-import 'package:lost_n_found/features/auth/data/models/auth_hive_model.dart';
 
-// create provier
-final authRemoteDataSourceProvider = Provider<IAuthRemoteDataSource>((ref) {
+// Provide the remote data source
+final authRemoteDatsourceProvider = Provider<IAuthRemoteDataSource>((ref) {
   return AuthRemoteDatasource(
     apiClient: ref.read(apiClientProvider),
     userSessionService: ref.read(userSessionServiceProvider),
@@ -16,80 +15,62 @@ final authRemoteDataSourceProvider = Provider<IAuthRemoteDataSource>((ref) {
   );
 });
 
-class AuthRemoteDatasource implements IAuthRemoteDataSource{
+class AuthRemoteDatasource implements IAuthRemoteDataSource {
   final ApiClient _apiClient;
   final UserSessionService _userSessionService;
   final TokenService _tokenService;
 
   AuthRemoteDatasource({
     required ApiClient apiClient,
-    required UserSessionService userSessionService, 
+    required UserSessionService userSessionService,
     required TokenService tokenService,
-  })  : _tokenService = tokenService, 
-        _apiClient = apiClient,
-        _userSessionService = userSessionService;
-
-  
-  
+  }) : _apiClient = apiClient,
+       _userSessionService = userSessionService,
+       _tokenService = tokenService;
 
   @override
-  Future<AuthApiModel?> login(String email, String password) async{
- final response = await _apiClient.post(
+  Future<AuthApiModel?> login(String email, String password) async {
+    final response = await _apiClient.post(
       ApiEndpoints.studentLogin,
-      data: {
-        'email': email,
-        'password': password,
-      },
+      data: {'email': email, 'password': password},
     );
-
-    if (response.data['success'] == true){
+    if (response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
       final user = AuthApiModel.fromJson(data);
 
       // save to session
-
       await _userSessionService.saveUserSession(
-        userId: user.id!, 
-        email: user.email, 
+        userId: user.id!,
+        email: user.email,
         fullName: user.fullName,
         username: user.username,
-        );
-
-  //save token
-  final token = response.data['token'] as String?;
-  await _tokenService.saveToken(token!);
-  
+      );
+      // save token
+      final token = response.data['token'] as String?;
+      await _tokenService.saveToken(token!);
       return user;
     }
-    
+
     return null;
   }
 
-
   @override
-  Future<AuthApiModel> register(AuthApiModel user) async{
+  Future<AuthApiModel> register(AuthApiModel user) async {
     final response = await _apiClient.post(
       ApiEndpoints.students,
       data: user.toJson(),
     );
-
-    if (response.data['success'] == true){
+    if (response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
       final registeredUser = AuthApiModel.fromJson(data);
       return registeredUser;
     }
     return user;
-
-   
   }
 
- 
   @override
   Future<AuthApiModel?> getUserById(String authId) {
     // TODO: implement getUserById
     throw UnimplementedError();
-  }       
-  
-
-  
+  }
 }

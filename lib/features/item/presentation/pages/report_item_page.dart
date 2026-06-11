@@ -64,7 +64,9 @@ class _ReportItemPageState extends ConsumerState<ReportItemPage> {
       final userSessionService = ref.read(userSessionServiceProvider);
       final userId = userSessionService.getCurrentUserId();
 
-      await ref.read(itemViewModelProvider.notifier).createItem(
+      await ref
+          .read(itemViewModelProvider.notifier)
+          .createItem(
             itemName: _titleController.text.trim(),
             description: _descriptionController.text.trim().isEmpty
                 ? null
@@ -81,176 +83,159 @@ class _ReportItemPageState extends ConsumerState<ReportItemPage> {
     return _categoryIcons[categoryName] ?? Icons.category_rounded;
   }
 
-final List<XFile> _selectedMedia = [];
-final ImagePicker _Imagepicker = ImagePicker();
+  // hhhhhhhhhhhhhhhh
+  final List<XFile> _selectedMedia = []; // images and videos
+  final ImagePicker _imagePicker = ImagePicker();
 
-Future<bool> _userSangaPermissionMagu(Permission permission) async {
-  final status = await permission.status;
-  if (status.isGranted) {
-    return true;
-  }
-  if (status.isDenied){
-    final result = await permission.request();
-    return result.isGranted;
-  }
+  Future<bool> _userSangaPermissionMagu(Permission permission) async {
+    final status = await permission.status;
 
-  if (status.isPermanentlyDenied){
-    _showPermissionDeniedDialog();
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isDenied) {
+      final result = await permission.request();
+      return result.isGranted;
+    }
+
+    if (status.isPermanentlyDenied) {
+      _showPermissionDialog();
+      return false;
+    }
     return false;
   }
-  return false;
-}
 
-
-
-void _showPermissionDeniedDialog() {
-  showDialog(
-    context: context, 
-    builder:(context) => AlertDialog(
-      title: const Text('Permission Denied'),
-      content: const Text('Please grant the necessary permissions to select media.'),
-      actions: [
-        TextButton(onPressed: () {}, child: Text('Cancel')),
-        TextButton(onPressed: () {}, child: Text('Open Settings')),
-          
-      ],
-    ),
-  );
-}
-
-//code for camera
-Future<void> _cameraBataKhicha() async {
-  final hasCameraPermission = await _userSangaPermissionMagu(Permission.camera);
-  if (!hasCameraPermission) return;
-
-final XFile? photo = await _Imagepicker.pickImage(
-  source: ImageSource.camera,
-  imageQuality: 80,
-  );
-  if (photo != null) {
-    setState(() {
-      _selectedMedia.add(photo);
-    });
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Permission Required'),
+          content: Text(
+            'Please grant permission to access your photos and videos.',
+          ),
+          actions: [
+            TextButton(onPressed: () {}, child: Text('Cancel')),
+            ElevatedButton(onPressed: () {}, child: Text('Settings')),
+          ],
+        );
+      },
+    );
   }
-}
 
-// wrapper expected by UI
-Future<void> _pickFromCamera() async {
-  // iOS Simulator may not support a camera; this simply delegates
-  await _cameraBataKhicha();
-}
-
-//code for gallery
-Future<void> _pickFromGallery({bool allowMultiple = false}) async {
-  try {
-    if (allowMultiple) {
-      final List<XFile> images = await _Imagepicker.pickMultiImage(
-        imageQuality: 80,
-      );
-      if (images.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _selectedMedia.clear();
-            _selectedMedia.addAll(images);
-          });
-        }
-      }
-    } else {
-      final XFile? image = await _Imagepicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-      if (image != null) {
-        if (mounted) {
-          setState(() {
-            _selectedMedia.clear();
-            _selectedMedia.add(image);
-          });
-        }
-      }
-    }
-  } catch (e) {
-    debugPrint('Gallery Error $e');
-    if (mounted) {
-      SnackbarUtils.showError(
-        context,
-        'Tapai ko gallery access garna payena, kripya garera camera kholnus ani photo khichnus',
-      );
-    }
-  }
-}
-
-
-//code for video
-Future<void> _pickFromVideo() async {
-  try{
+  /// Camera
+  Future<void> _pickFromCamera() async {
     final hasPermission = await _userSangaPermissionMagu(Permission.camera);
+
     if (!hasPermission) return;
 
-    final hasMicPermission = await _userSangaPermissionMagu(Permission.microphone);
-    if (!hasMicPermission) return;
-
-    final XFile? video = await _Imagepicker.pickVideo(
+    final XFile? photo = await _imagePicker.pickImage(
       source: ImageSource.camera,
-      maxDuration: const Duration(minutes: 1),
+      imageQuality: 80,
     );
-    if (video != null) {
+
+    if (photo != null) {
+      setState(() {
+        _selectedMedia
+            .clear(); // if user le arko photo select garxa vanye pura lai remove garxa
+        _selectedMedia.add(photo);
+      });
+
+      // upload image to server
+      await ref
+          .read(itemViewModelProvider.notifier)
+          .uploadPhoto(File(photo.path));
+    }
+  }
+
+  /// Gallery (multiple images)
+  Future<void> _pickImagesFromGallery() async {
+    final hasPermission = await _userSangaPermissionMagu(Permission.photos);
+
+    if (!hasPermission) return;
+
+    final List<XFile> images = await _imagePicker.pickMultiImage(
+      imageQuality: 80,
+    );
+
+    if (images.isNotEmpty) {
+      setState(() {
+        _selectedMedia.addAll(images);
+      });
+      // upload image to server
+      for (final image in images) {
+        await ref
+            .read(itemViewModelProvider.notifier)
+            .uploadPhoto(File(image.path));
+      }
+    }
+  }
+
+  /// Video
+  Future<void> _recordVideo() async {
+    try {
+      final hasPermission = await _userSangaPermissionMagu(Permission.camera);
+
+      if (!hasPermission) return;
+
+      final XFile? video = await _imagePicker.pickVideo(
+        source: ImageSource.camera,
+        maxDuration: const Duration(minutes: 2),
+      );
+
+      if (video != null) {
         setState(() {
-          _selectedMedia.clear();
           _selectedMedia.add(video);
         });
-      
+      }
+    } catch (e) {
+      debugPrint('Error recording video: $e');
     }
-  } catch (e) {
-    _showPermissionDeniedDialog();
   }
-}
 
-//code for dialogbox : showdialog for menu
-Future<void> _pickMedia() async {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: context.surfaceColor,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(Icons.camera),
-              title: Text('Open Camera'),
-              onTap: (){
-                Navigator.pop(context);
-                _pickFromCamera();
-              },
+  Future<void> _showMediaPickerDialog() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Open Camera'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickFromCamera();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Open Gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImagesFromGallery();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.video_library),
+                  title: const Text('Record Video'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _recordVideo();
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: Icon(Icons.photo_library),
-              title: Text('Open Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickFromGallery();
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.camera), 
-              title: Text('Record Video'),  
-              onTap:(){
-              Navigator.pop(context);
-              _pickFromVideo();
-              }
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -346,8 +331,9 @@ Future<void> _pickMedia() async {
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
                                   decoration: BoxDecoration(
                                     gradient: _selectedType == ItemType.lost
                                         ? AppColors.lostGradient
@@ -389,8 +375,9 @@ Future<void> _pickMedia() async {
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
                                   decoration: BoxDecoration(
                                     gradient: _selectedType == ItemType.found
                                         ? AppColors.foundGradient
@@ -440,12 +427,11 @@ Future<void> _pickMedia() async {
                       ),
                       const SizedBox(height: 12),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Add Photo Button
+                          // FIXED ADD BUTTON
                           GestureDetector(
-                            onTap: () {
-                              _pickMedia();
-                            },
+                            onTap: _showMediaPickerDialog,
                             child: Container(
                               width: 100,
                               height: 100,
@@ -455,88 +441,69 @@ Future<void> _pickMedia() async {
                                 border: Border.all(
                                   color: context.borderColor,
                                   width: 2,
-                                  style: BorderStyle.solid,
                                 ),
                               ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      gradient: _selectedType == ItemType.lost
-                                          ? AppColors.lostGradient
-                                          : AppColors.foundGradient,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                      Icons.add_a_photo_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Add Photo / Video',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: context.textSecondary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              child: const Icon(Icons.add_a_photo),
                             ),
                           ),
 
-                 
+                          const SizedBox(width: 12),
 
-                     if (_selectedMedia.isNotEmpty) ...[
-                      Stack(
-                        children: [
-                          Container(
-                            width:  120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              image: DecorationImage(
-                               image: FileImage(
-                                File(_selectedMedia[0].path),
-                               ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedMedia.clear();
-                                });
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle,),
-                                padding: EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  size: 16,
-                                  color: Colors.white),
+                          // SCROLLABLE IMAGES
+                          Expanded(
+                            child: SizedBox(
+                              height: 100, // IMPORTANT
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: _selectedMedia.map((file) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Stack(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child: Image.file(
+                                              File(file.path),
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+
+                                          Positioned(
+                                            right: 0,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                setState(() {
+                                                  _selectedMedia.remove(file);
+                                                });
+                                              },
+                                              child: const CircleAvatar(
+                                                radius: 12,
+                                                backgroundColor: Colors.red,
+                                                child: Icon(
+                                                  Icons.close,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
-                                
-
-                          ),
+                              ),
                             ),
-
+                          ),
                         ],
                       ),
-                     ],
-                        ],
-                        
-                      ),
-                           const SizedBox(height: 24),
 
+                      const SizedBox(height: 24),
 
                       // Item Title
                       Text(
@@ -611,8 +578,7 @@ Future<void> _pickMedia() async {
                             hintText: _selectedType == ItemType.lost
                                 ? 'Where did you lose it?'
                                 : 'Where did you find it?',
-                            hintStyle:
-                                TextStyle(color: context.textTertiary),
+                            hintStyle: TextStyle(color: context.textTertiary),
                             prefixIcon: Icon(
                               Icons.location_on_rounded,
                               color: context.textSecondary,
@@ -760,15 +726,12 @@ Future<void> _pickMedia() async {
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               gradient: isSelected
                   ? (_selectedType == ItemType.lost
-                      ? AppColors.lostGradient
-                      : AppColors.foundGradient)
+                        ? AppColors.lostGradient
+                        : AppColors.foundGradient)
                   : null,
               color: isSelected ? null : context.surfaceColor,
               borderRadius: BorderRadius.circular(12),

@@ -18,26 +18,26 @@ class AuthApiModel {
     required this.email,
     this.phoneNumber,
     required this.username,
-    this.password,
     this.batchId,
+    this.password,
     this.profilePicture,
     this.batch,
-  }); 
+  });
 
-  // tojson
+  //toJSON
   Map<String, dynamic> toJson() {
     return {
-      'name': fullName,     
-      'email': email,
-      'phoneNumber': phoneNumber,
-      'username': username,
-      'password': password,
-      'batchId': batchId,
-      'profilePicture': profilePicture,
+      "name": fullName,
+      "email": email,
+      "phoneNumber": phoneNumber,
+      "username": username,
+      "password": password,
+      "batchId": batchId,
+      "profilePicture": profilePicture,
     };
   }
 
-  //fromjson
+  // fromJSON
   factory AuthApiModel.fromJson(Map<String, dynamic> json) {
     return AuthApiModel(
       id: json['_id'] as String,
@@ -47,14 +47,13 @@ class AuthApiModel {
       username: json['username'] as String,
       batchId: json['batchId'] as String?,
       profilePicture: json['profilePicture'] as String?,
-      batch: json['batch'] != null          
-      ? BatchApiModel.fromJson(json['batch'] as Map<String, dynamic>)
+      batch: json['batch'] != null
+          ? BatchApiModel.fromJson(json['batch'] as Map<String, dynamic>)
           : null,
-    );    
-
+    );
   }
 
-  //toentity
+  //  toEntity
   AuthEntity toEntity() {
     return AuthEntity(
       authId: id,
@@ -62,22 +61,21 @@ class AuthApiModel {
       email: email,
       phoneNumber: phoneNumber,
       username: username,
-      password: password,
       batchId: batchId,
       profilePicture: profilePicture,
       batch: batch?.toEntity(),
     );
   }
 
-  //fromentity
+  // formEntity
   factory AuthApiModel.fromEntity(AuthEntity entity) {
     return AuthApiModel(
       fullName: entity.fullName,
       email: entity.email,
       phoneNumber: entity.phoneNumber,
       username: entity.username,
-      password: entity.password,
       batchId: entity.batchId,
+      password: entity.password,
       profilePicture: entity.profilePicture,
       batch: entity.batch != null
           ? BatchApiModel.fromEntity(entity.batch!)
@@ -85,10 +83,8 @@ class AuthApiModel {
     );
   }
 
-  //toentitylist
-  static List<AuthEntity> toEntityList(List<AuthApiModel> apiModels) {
-    return apiModels.map((apiModel) => apiModel.toEntity()).toList(); 
-  }  
-
-
+  // toEntityList
+  static List<AuthEntity> toEntityList(List<AuthApiModel> models) {
+    return models.map((model) => model.toEntity()).toList();
+  }
 }
